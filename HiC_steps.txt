@@ -1,0 +1,141 @@
+# Download published Hi-C data (https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE125068)
+
+# Samples:
+# HiC_Sal_rep1 —> GSM3562128, SRS4250870 (SRR8441361, SRR8441362) 
+# HiC_Sal_rep2 —> GSM3562129, SRX5248693 (SRR8441363, SRR8441364)
+
+mkdir original_data
+
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR844/001/SRR8441361/SRR8441361_1.fastq.gz -O original_data/SRR8441361_1.fastq.gz
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR844/001/SRR8441361/SRR8441361_2.fastq.gz -O original_data/SRR8441361_2.fastq.gz
+
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR844/002/SRR8441362/SRR8441362_1.fastq.gz -O original_data/SRR8441362_1.fastq.gz
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR844/002/SRR8441362/SRR8441362_2.fastq.gz -O original_data/SRR8441362_2.fastq.gz
+
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR844/003/SRR8441363/SRR8441363_1.fastq.gz -O original_data/SRR8441363_1.fastq.gz
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR844/003/SRR8441363/SRR8441363_2.fastq.gz -O original_data/SRR8441363_2.fastq.gz
+
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR844/004/SRR8441364/SRR8441364_1.fastq.gz -O original_data/SRR8441364_1.fastq.gz
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR844/004/SRR8441364/SRR8441364_2.fastq.gz -O original_data/SRR8441364_2.fastq.gz
+
+# Download and process the reference genome (mm10)
+mkdir genome_mm10
+wget http://hgdownload-test.cse.ucsc.edu/goldenPath/mm10/bigZips/chromFa.tar.gz -O genome_mm10/chromFa.tar.gz --no-check-certificate
+cd genome_mm10
+tar -xvzf chromFa.tar.gz
+cat *.fa > mm10.fa
+cd ..
+
+mkdir bowtie2
+bowtie2-build genome_mm10/mm10.fa bowtie2/mm10_index --threads 30
+
+# Reads mapping
+bowtie2 -x bowtie2/mm10_index --threads 30 -U original_data/SRR8441361_1.fastq.gz --reorder | samtools view -Shb - > SRR8441361_1.bam
+bowtie2 -x bowtie2/mm10_index --threads 30 -U original_data/SRR8441361_2.fastq.gz --reorder | samtools view -Shb - > SRR8441361_2.bam
+bowtie2 -x bowtie2/mm10_index --threads 30 -U original_data/SRR8441362_1.fastq.gz --reorder | samtools view -Shb - > SRR8441362_1.bam
+bowtie2 -x bowtie2/mm10_index --threads 30 -U original_data/SRR8441362_2.fastq.gz --reorder | samtools view -Shb - > SRR8441362_2.bam
+bowtie2 -x bowtie2/mm10_index --threads 30 -U original_data/SRR8441363_1.fastq.gz --reorder | samtools view -Shb - > SRR8441363_1.bam
+bowtie2 -x bowtie2/mm10_index --threads 30 -U original_data/SRR8441363_2.fastq.gz --reorder | samtools view -Shb - > SRR8441363_2.bam
+bowtie2 -x bowtie2/mm10_index --threads 30 -U original_data/SRR8441364_1.fastq.gz --reorder | samtools view -Shb - > SRR8441364_1.bam
+bowtie2 -x bowtie2/mm10_index --threads 30 -U original_data/SRR8441364_2.fastq.gz --reorder | samtools view -Shb - > SRR8441364_2.bam
+
+# Download and install miniconda and hicexplorer
+cd /data/$USER
+export TMPDIR=/lscratch/$SLURM_JOB_ID
+wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh -p /data/$USER/conda -b
+rm Miniconda3-latest-Linux-x86_64.sh
+source /data/$USER/conda/etc/profile.d/conda.sh
+conda activate base
+conda update --all
+conda clean --all --yes
+conda create --name hicexplorer hicexplorer=3.7.1. python=3.8 -c bioconda -c conda-forge
+conda activate hicexplorer
+
+conda activate hicexplorer
+mkdir hicMatrix
+
+
+# create the contact matirces
+hicBuildMatrix --samFiles SRR8441361_1.bam SRR8441361_2.bam --binSize 10000 --restrictionSequence GATC --danglingSequence GATC --restrictionCutFile cut_sites.bed --outBam SRR8441361_ref.bam --outFileName hicMatrix/SRR8441361_10kb.h5 --QCfolder hicMatrix/SRR8441361_10kb_QC --threads 8 --inputBufferSize 400000
+hicBuildMatrix --samFiles SRR8441362_1.bam SRR8441362_2.bam --binSize 10000 --restrictionSequence GATC --danglingSequence GATC --restrictionCutFile cut_sites.bed --outBam SRR8441362_ref.bam --outFileName hicMatrix/SRR8441362_10kb.h5 --QCfolder hicMatrix/SRR8441362_10kb_QC --threads 8 --inputBufferSize 400000
+hicBuildMatrix --samFiles SRR8441363_1.bam SRR8441363_2.bam --binSize 10000 --restrictionSequence GATC --danglingSequence GATC --restrictionCutFile cut_sites.bed --outBam SRR8441363_ref.bam --outFileName hicMatrix/SRR8441363_10kb.h5 --QCfolder hicMatrix/SRR8441363_10kb_QC --threads 8 --inputBufferSize 400000
+hicBuildMatrix --samFiles SRR8441364_1.bam SRR8441364_2.bam --binSize 10000 --restrictionSequence GATC --danglingSequence GATC --restrictionCutFile cut_sites.bed --outBam SRR8441364_ref.bam --outFileName hicMatrix/SRR8441364_10kb.h5 --QCfolder hicMatrix/SRR8441364_10kb_QC --threads 8 --inputBufferSize 400000
+
+# diagnostic plots
+hicQC --logfiles hicMatrix/SRR8441361_10kb_QC/QC.log hicMatrix/SRR8441362_10kb_QC/QC.log hicMatrix/SRR8441363_10kb_QC/QC.log hicMatrix/SRR8441364_10kb_QC/QC.log \
+--labels "SRR8441361" "SRR8441362" "SRR8441363" "SRR8441364" \
+-o plots/QC_All_plots
+
+hicCorrelate -m hicMatrix/SRR8441361_10kb.h5 hicMatrix/SRR8441362_10kb.h5 hicMatrix/SRR8441363_10kb.h5 hicMatrix/SRR8441364_10kb.h5 \
+--method=pearson --log1p \
+--labels SRR8441361 SRR8441362 SRR8441363 SRR8441364 \
+--outFileNameHeatmap plots/hicCorrelate_heatmap --outFileNameScatter plots/DhicCorrelate_scatterplot
+
+hicPlotDistVsCounts -m hicMatrix/SRR8441361_10kb.h5 hicMatrix/SRR8441362_10kb.h5 hicMatrix/SRR8441363_10kb.h5 hicMatrix/SRR8441364_10kb.h5 \
+-o plots/counts_vs_dist_10kb_merged.png \
+--labels "SRR8441361" "SRR8441362" "SRR8441363" "SRR8441364" \
+--maxdepth 20000000 \
+--plotsize 5 4.2
+
+# consolidate matrices into one
+hicSumMatrices --matrices hicMatrix/SRR8441361_10kb.h5 hicMatrix/SRR8441362_10kb.h5 hicMatrix/SRR8441363_10kb.h5 hicMatrix/SRR8441364_10kb.h5 --outFileName hicMatrix/replicateMerged_10kb.h5
+
+# Merge matrix bins for plotting
+hicMergeMatrixBins \
+--matrix hicMatrix/replicateMerged_10kb.h5 --numBins 100 \
+--outFileName hicMatrix/replicateMerged.100bins.h5
+
+# Plot the corrected Hi-C matrix
+hicPlotMatrix \
+--matrix hicMatrix/replicateMerged.100bins.h5 \
+--log1p \
+--dpi 300 \
+--clearMaskedBins \
+--chromosomeOrder chr1 chr2 chr3 chr4 chr5 chr6 chr7 chr8 chr9 chr10 chr11 chr12 chr13 chr14 chr15 chr16 chr17 chr18 chr19 chrX chrY \
+--colorMap jet \
+--title "Hi-C matrix" \
+--rotationX 90 \
+--outFileName plots/plot_1Mb_matrix.png
+
+
+hicMergeMatrixBins \
+--matrix hicMatrix/replicateMerged_10kb.h5 --numBins 2 \
+--outFileName hicMatrix/replicateMerged.matrix_20kb.h5
+
+
+# Correct Hi-C Matrix
+hicCorrectMatrix diagnostic_plot \
+--chromosomes chr1 chr2 chr3 chr4 chr5 chr6 chr7 chr8 chr9 chr10 chr11 chr12 chr13 chr14 chr15 chr16 chr17 chr18 chr19 chrX chrY \
+--matrix hicMatrix/replicateMerged.matrix_20kb.h5 --plotName hicMatrix/diagnostic_plot.png
+
+hicCorrectMatrix correct \
+--chromosomes chr1 chr2 chr3 chr4 chr5 chr6 chr7 chr8 chr9 chr10 chr11 chr12 chr13 chr14 chr15 chr16 chr17 chr18 chr19 chrX chrY \
+--matrix hicMatrix/replicateMerged.matrix_20kb.h5 \
+--filterThreshold -2.5 2.5 --perchr --outFileName hicMatrix/replicateMerged.Corrected_20kb.h5
+
+
+hicPlotMatrix \
+--log1p --dpi 300 \
+--matrix hicMatrix/replicateMerged.Corrected_20kb.h5 \
+--region chrX --title "Corrected Hi-C matrix for mESC : chrX" \
+--outFileName plots/replicateMerged_Corrected-20kb_plot-chrX.png
+
+
+mkdir TADs
+hicFindTADs --matrix hicMatrix/replicateMerged.Corrected_20kb.h5 \
+--numberOfProcessors 8  \
+--outPrefix TADs/marks_et-al_TADs_20kb-Bins \
+--correctForMultipleTesting fdr --threshold 0.05
+
+
+
+
+# hicConvertFormat  to mcool (HiGlass) for visualization dd 
+mkdir HiGlass
+hicConvertFormat -m hicMatrix/replicateMerged.Corrected_20kb.h5 --inputFormat h5 --outputFormat mcool -o HiGlass/multi_matrix.mcool --resolutions 20000 40000 70000 120000 50000
+0
+
+
+
+
